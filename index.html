@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ehtesab — Daily Tracker</title>
+<meta name="theme-color" content="#141A2E">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="sky" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="crescent" aria-hidden="true">
+      <svg viewBox="0 0 40 40"><path d="M24 4a16 16 0 1 0 0 32 13 13 0 0 1 0-32z"/></svg>
+    </span>
+    <div>
+      <h1>Ehtesab</h1>
+      <p class="tagline">حاسبوا أنفسكم — take account of yourself, daily.</p>
+    </div>
+  </div>
+  <button id="resetBtn" class="ghost-btn" title="Clear all data on this device">Reset data</button>
+</header>
+
+<main>
+
+  <!-- SIGNATURE ELEMENT: streak arc -->
+  <section class="streak-panel" aria-label="Current streak">
+    <div class="streak-arc-wrap">
+      <svg class="streak-arc" viewBox="0 0 220 130" aria-hidden="true">
+        <path id="arcTrack" d="M20,120 A90,90 0 0 1 200,120" />
+        <path id="arcFill" d="M20,120 A90,90 0 0 1 200,120" />
+      </svg>
+      <div class="streak-number">
+        <span id="streakCount">0</span>
+        <label>day streak</label>
+      </div>
+    </div>
+    <div class="streak-meta">
+      <p id="streakMessage">Complete today's five to light the arc.</p>
+      <div class="badges" id="badgeRow"></div>
+    </div>
+  </section>
+
+  <!-- TODAY CHECK-IN -->
+  <section class="card" aria-label="Today's check-in">
+    <div class="card-head">
+      <h2 id="todayLabel">Today</h2>
+      <span class="pill" id="todayProgress">0/9</span>
+    </div>
+
+    <div class="group">
+      <h3 class="group-label">Prayers</h3>
+      <div class="chip-row" id="prayerRow"></div>
+    </div>
+
+    <div class="group">
+      <h3 class="group-label">Habits</h3>
+      <div class="chip-row" id="habitRow"></div>
+    </div>
+
+    <label class="reflection-label" for="reflection">Reflection</label>
+    <textarea id="reflection" placeholder="One honest line about today…" rows="2"></textarea>
+  </section>
+
+  <!-- MONTH MOSAIC -->
+  <section class="card" aria-label="Monthly overview">
+    <div class="card-head">
+      <h2 id="monthLabel">This month</h2>
+      <div class="nav-btns">
+        <button id="prevMonth" class="icon-btn" aria-label="Previous month">‹</button>
+        <button id="nextMonth" class="icon-btn" aria-label="Next month">›</button>
+      </div>
+    </div>
+    <div class="mosaic" id="mosaicGrid"></div>
+    <div class="mosaic-legend">
+      <span>Less</span>
+      <span class="legend-cell l0"></span>
+      <span class="legend-cell l1"></span>
+      <span class="legend-cell l2"></span>
+      <span class="legend-cell l3"></span>
+      <span class="legend-cell l4"></span>
+      <span>More</span>
+    </div>
+  </section>
+
+  <!-- STATS -->
+  <section class="stats-row">
+    <div class="stat-card">
+      <span class="stat-num" id="statMonthDays">0</span>
+      <span class="stat-label">days logged this month</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-num" id="statBestStreak">0</span>
+      <span class="stat-label">best streak ever</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-num" id="statPrayerRate">0%</span>
+      <span class="stat-label">prayer completion, this month</span>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <p>Data stays on this device only. Nothing is sent anywhere.</p>
+</footer>
+
+<script src="app.js"></script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
