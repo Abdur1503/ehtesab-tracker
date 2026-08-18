@@ -1,9 +1,11 @@
-const CACHE = 'ehtesab-v1';
+const CACHE = 'ehtesab-v2';
 const ASSETS = [
   './',
   './index.html',
+  './insights.html',
   './style.css',
   './app.js',
+  './insights.js',
   './manifest.json',
   './icons/icon-192.svg',
   './icons/icon-512.svg'

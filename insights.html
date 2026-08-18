@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Insights — Ehtesab</title>
+<meta name="theme-color" content="#141A2E">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="sky" aria-hidden="true"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="crescent" aria-hidden="true">
+      <svg viewBox="0 0 40 40"><path d="M24 4a16 16 0 1 0 0 32 13 13 0 0 1 0-32z"/></svg>
+    </span>
+    <div>
+      <h1>Insights</h1>
+      <p class="tagline">Your patterns, not just your checkmarks.</p>
+    </div>
+  </div>
+  <a href="index.html" class="back-link">← Back to tracker</a>
+</header>
+
+<main>
+
+  <section class="insight-callout" aria-label="Auto-generated insights">
+    <h2>What your data is telling you</h2>
+    <ul class="insight-list" id="insightList"></ul>
+  </section>
+
+  <section class="card" aria-label="Weekly rhythm">
+    <div class="card-head"><h2>Weekly rhythm</h2></div>
+
+    <div class="weekday-block">
+      <div class="weekday-title"><span>Gym</span><span class="sub" id="gymRateLabel"></span></div>
+      <div class="weekday-bars" id="gymBars"></div>
+    </div>
+
+    <div class="weekday-block">
+      <div class="weekday-title"><span>Upskilling</span><span class="sub" id="upskillRateLabel"></span></div>
+      <div class="weekday-bars" id="upskillBars"></div>
+    </div>
+
+    <div class="weekday-block">
+      <div class="weekday-title"><span>Prayers on time</span><span class="sub">prayed or mosque</span></div>
+      <div class="weekday-bars" id="onTimeBars"></div>
+    </div>
+
+    <div class="weekday-block">
+      <div class="weekday-title"><span>Qazaa rate</span><span class="sub muted-note">higher = worse</span></div>
+      <div class="weekday-bars" id="qazaaBars"></div>
+    </div>
+  </section>
+
+  <section class="card" aria-label="Slip patterns">
+    <div class="card-head"><h2>Most frequent slips</h2></div>
+    <div class="tag-freq-list" id="tagFreqList"></div>
+  </section>
+
+  <section class="card" aria-label="Mood, last 14 days">
+    <div class="card-head"><h2>Mood — last 14 days</h2></div>
+    <div class="mood-sparkline" id="moodSpark"></div>
+  </section>
+
+  <section class="card" aria-label="Reading totals">
+    <div class="card-head"><h2>Reading totals, this month</h2></div>
+    <div class="stats-row" id="readingStats"></div>
+  </section>
+
+</main>
+
+<footer>
+  <p>Data stays on this device only. Nothing is sent anywhere.</p>
+</footer>
+
+<script src="insights.js"></script>
+</body>
+</html>

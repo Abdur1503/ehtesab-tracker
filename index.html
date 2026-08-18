@@ -27,7 +27,10 @@
       <p class="tagline">حاسبوا أنفسكم — take account of yourself, daily.</p>
     </div>
   </div>
-  <button id="resetBtn" class="ghost-btn" title="Clear all data on this device">Reset data</button>
+  <div class="topbar-actions">
+    <a href="insights.html" class="ghost-btn accent-btn">Insights →</a>
+    <button id="resetBtn" class="ghost-btn" title="Clear all data on this device">Reset data</button>
+  </div>
 </header>
 
 <main>
@@ -59,7 +62,8 @@
 
     <div class="group">
       <h3 class="group-label">Prayers</h3>
-      <div class="chip-row" id="prayerRow"></div>
+      <p class="group-hint">Tap the state each prayer landed in. Qazaa still counts as prayed, but it's flagged as a slip.</p>
+      <div class="prayer-list" id="prayerList"></div>
     </div>
 
     <div class="group">
@@ -67,8 +71,26 @@
       <div class="chip-row" id="habitRow"></div>
     </div>
 
-    <label class="reflection-label" for="reflection">Reflection</label>
-    <textarea id="reflection" placeholder="One honest line about today…" rows="2"></textarea>
+    <div class="group">
+      <h3 class="group-label">Reading</h3>
+      <div class="reading-row" id="readingRow"></div>
+    </div>
+
+    <div class="group">
+      <h3 class="group-label">Slipped up today?</h3>
+      <p class="group-hint">Tap anything that applies, or add your own.</p>
+      <div class="chip-row negative-row" id="negativeRow"></div>
+      <button id="addNegativeBtn" class="add-chip-btn" type="button">+ Add</button>
+    </div>
+
+    <div class="group reflection-block">
+      <h3 class="group-label">Reflection</h3>
+      <div class="mood-row" id="moodRow"></div>
+      <label class="reflection-label" for="winField">What went well</label>
+      <textarea id="winField" placeholder="One honest line…" rows="2"></textarea>
+      <label class="reflection-label" for="slipField">What pulled you off track</label>
+      <textarea id="slipField" placeholder="Be specific — this is what the dashboard learns from." rows="2"></textarea>
+    </div>
   </section>
 
   <!-- MONTH MOSAIC -->
@@ -89,6 +111,7 @@
       <span class="legend-cell l3"></span>
       <span class="legend-cell l4"></span>
       <span>More</span>
+      <span class="legend-dot-note"><span class="legend-dot"></span> slip logged</span>
     </div>
   </section>
 
@@ -107,6 +130,8 @@
       <span class="stat-label">prayer completion, this month</span>
     </div>
   </section>
+
+  <a href="insights.html" class="insights-cta">See your patterns → Insights dashboard</a>
 
 </main>
 

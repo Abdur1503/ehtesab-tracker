@@ -1,9 +1,19 @@
 /* ---------- config ---------- */
 const PRAYERS = ['Fajr', 'Zohr', 'Asr', 'Maghrib', 'Isha'];
-const HABITS  = ['Gym', 'Upskilling', 'Book', 'Ayat'];
-const STORAGE_KEY = 'ehtesab_days_v1';
+const PRAYER_STATES = ['qazaa', 'prayed', 'mosque']; // 'none' is the unset default
+const HABITS  = ['Gym', 'Upskilling'];
+const READING = [
+  { key: 'Book', label: 'Book', unit: 'pages' },
+  { key: 'Ayat', label: 'Ayat', unit: 'ayat' }
+];
+const DEFAULT_NEGATIVES = ['Missed Fajr', 'Junk food', 'Doomscrolling', 'Procrastinated', 'Lost temper', 'Skipped gym'];
+
+const STORAGE_KEY = 'ehtesab_days_v2';
+const OLD_STORAGE_KEY = 'ehtesab_days_v1'; // v1: boolean prayers, single reflection field
+const CUSTOM_NEG_KEY = 'ehtesab_custom_negatives_v1';
 const MILESTONES = [3, 7, 14, 30, 60, 100];
 const ARC_CAP = 30; // streak length at which the arc reads "full"
+const TOTAL_ITEMS = PRAYERS.length + HABITS.length + READING.length; // 9
 
 /* ---------- date helpers ---------- */
 function pad(n){ return n.toString().padStart(2, '0'); }
@@ -15,10 +25,42 @@ const today = new Date();
 today.setHours(0,0,0,0);
 
 /* ---------- state ---------- */
+function emptyDay(){
+  const prayers = {}; PRAYERS.forEach(p => prayers[p] = 'none');
+  const habits = {}; HABITS.forEach(h => habits[h] = false);
+  const reading = {}; READING.forEach(r => reading[r.key] = 0);
+  return { prayers, habits, reading, negatives: [], mood: 0, win: '', slip: '' };
+}
+
+function migrateFromV1(){
+  try{
+    const raw = localStorage.getItem(OLD_STORAGE_KEY);
+    if(!raw) return {};
+    const old = JSON.parse(raw);
+    const migrated = {};
+    Object.keys(old).forEach(key => {
+      const oldDay = old[key];
+      const day = emptyDay();
+      PRAYERS.forEach(p => { day.prayers[p] = oldDay.prayers && oldDay.prayers[p] ? 'prayed' : 'none'; });
+      HABITS.forEach(h => { day.habits[h] = !!(oldDay.habits && oldDay.habits[h]); });
+      // old 'Book' and 'Ayat' habit booleans -> nominal counts
+      if(oldDay.habits && oldDay.habits['Book']) day.reading['Book'] = 1;
+      if(oldDay.habits && oldDay.habits['Ayat']) day.reading['Ayat'] = 1;
+      day.win = oldDay.reflection || '';
+      migrated[key] = day;
+    });
+    return migrated;
+  }catch(e){ return {}; }
+}
+
 function loadAll(){
   try{
     const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : {};
+    if(raw) return JSON.parse(raw);
+    // no v2 data yet — attempt a one-time migration from v1
+    const migrated = migrateFromV1();
+    if(Object.keys(migrated).length){ saveAll(migrated); }
+    return migrated;
   }catch(e){ return {}; }
 }
 function saveAll(data){
@@ -26,34 +68,54 @@ function saveAll(data){
   catch(e){ console.error('Could not save — storage may be full or blocked.', e); }
 }
 
+function loadCustomNegatives(){
+  try{
+    const raw = localStorage.getItem(CUSTOM_NEG_KEY);
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+function saveCustomNegatives(list){
+  try{ localStorage.setItem(CUSTOM_NEG_KEY, JSON.stringify(list)); }catch(e){}
+}
+
 let allData = loadAll();
+let customNegatives = loadCustomNegatives();
 let viewMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
-function emptyDay(){
-  const prayers = {}; PRAYERS.forEach(p => prayers[p] = false);
-  const habits = {}; HABITS.forEach(h => habits[h] = false);
-  return { prayers, habits, reflection: '' };
+function negativeOptions(){
+  const custom = customNegatives.filter(n => !DEFAULT_NEGATIVES.includes(n));
+  return [...DEFAULT_NEGATIVES, ...custom];
 }
+
 function getDay(key){
   if(!allData[key]) allData[key] = emptyDay();
-  // guard against older/partial records
-  allData[key].prayers = { ...emptyDay().prayers, ...(allData[key].prayers||{}) };
-  allData[key].habits  = { ...emptyDay().habits,  ...(allData[key].habits||{}) };
-  return allData[key];
+  const fresh = emptyDay();
+  const d = allData[key];
+  d.prayers  = { ...fresh.prayers,  ...(d.prayers||{}) };
+  d.habits   = { ...fresh.habits,   ...(d.habits||{}) };
+  d.reading  = { ...fresh.reading,  ...(d.reading||{}) };
+  d.negatives = Array.isArray(d.negatives) ? d.negatives : [];
+  d.mood = typeof d.mood === 'number' ? d.mood : 0;
+  d.win = d.win || '';
+  d.slip = d.slip || '';
+  return d;
 }
+
+function prayerDone(state){ return state && state !== 'none'; }
 function countChecked(day){
-  const p = PRAYERS.filter(k => day.prayers[k]).length;
+  const p = PRAYERS.filter(k => prayerDone(day.prayers[k])).length;
   const h = HABITS.filter(k => day.habits[k]).length;
-  return p + h;
+  const r = READING.filter(r => (day.reading[r.key]||0) > 0).length;
+  return p + h + r;
 }
 function allPrayersDone(day){
-  return PRAYERS.every(k => day.prayers[k]);
+  return PRAYERS.every(k => prayerDone(day.prayers[k]));
+}
+function hasSlip(day){
+  return day.negatives.length > 0 || PRAYERS.some(k => day.prayers[k] === 'qazaa');
 }
 
 /* ---------- streak calculation ---------- */
-// A day "counts" toward the streak if all 5 prayers are logged.
-// Streak = consecutive counted days ending today (or yesterday, so an
-// unfinished "today" doesn't zero it out mid-day).
 function currentStreak(){
   let streak = 0;
   let cursor = new Date(today);
@@ -78,9 +140,7 @@ function bestStreakEver(){
     const done = day && allPrayersDone(day);
     if(done){
       if(prev){
-        const prevDate = fromKey(prev);
-        const curDate = fromKey(k);
-        const diffDays = Math.round((curDate - prevDate) / 86400000);
+        const diffDays = Math.round((fromKey(k) - fromKey(prev)) / 86400000);
         run = diffDays === 1 ? run + 1 : 1;
       } else run = 1;
       best = Math.max(best, run);
@@ -93,33 +153,59 @@ function bestStreakEver(){
 }
 
 /* ---------- rendering: today card ---------- */
-const prayerRow = document.getElementById('prayerRow');
+const prayerList = document.getElementById('prayerList');
 const habitRow  = document.getElementById('habitRow');
-const reflectionEl = document.getElementById('reflection');
+const readingRow = document.getElementById('readingRow');
+const negativeRow = document.getElementById('negativeRow');
+const moodRow = document.getElementById('moodRow');
+const winField = document.getElementById('winField');
+const slipField = document.getElementById('slipField');
 const todayLabel = document.getElementById('todayLabel');
 const todayProgress = document.getElementById('todayProgress');
 
-function renderChips(){
+const STATE_LABEL = { qazaa: 'Qazaa', prayed: 'Prayed', mosque: 'Mosque' };
+const MOODS = ['😞','🙁','😐','🙂','😄'];
+
+function renderPrayers(){
   const key = toKey(today);
   const day = getDay(key);
+  prayerList.innerHTML = '';
 
-  prayerRow.innerHTML = '';
   PRAYERS.forEach(name => {
-    const chip = document.createElement('button');
-    chip.className = 'chip prayer' + (day.prayers[name] ? ' on' : '');
-    chip.textContent = name;
-    chip.setAttribute('aria-pressed', day.prayers[name] ? 'true' : 'false');
-    chip.onclick = () => {
-      day.prayers[name] = !day.prayers[name];
-      saveAll(allData);
-      renderAll();
-    };
-    prayerRow.appendChild(chip);
-  });
+    const row = document.createElement('div');
+    row.className = 'prayer-item';
 
+    const label = document.createElement('span');
+    label.className = 'prayer-name';
+    label.textContent = name;
+    row.appendChild(label);
+
+    const btnWrap = document.createElement('div');
+    btnWrap.className = 'prayer-states';
+    PRAYER_STATES.forEach(state => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = `state-btn state-${state}` + (day.prayers[name] === state ? ' on' : '');
+      btn.textContent = STATE_LABEL[state];
+      btn.setAttribute('aria-pressed', day.prayers[name] === state ? 'true' : 'false');
+      btn.onclick = () => {
+        day.prayers[name] = (day.prayers[name] === state) ? 'none' : state;
+        saveAll(allData);
+        renderAll();
+      };
+      btnWrap.appendChild(btn);
+    });
+    row.appendChild(btnWrap);
+    prayerList.appendChild(row);
+  });
+}
+
+function renderHabits(){
+  const day = getDay(toKey(today));
   habitRow.innerHTML = '';
   HABITS.forEach(name => {
     const chip = document.createElement('button');
+    chip.type = 'button';
     chip.className = 'chip habit' + (day.habits[name] ? ' on' : '');
     chip.textContent = name;
     chip.setAttribute('aria-pressed', day.habits[name] ? 'true' : 'false');
@@ -130,21 +216,140 @@ function renderChips(){
     };
     habitRow.appendChild(chip);
   });
-
-  todayProgress.textContent = `${countChecked(day)}/${PRAYERS.length + HABITS.length}`;
-  todayLabel.textContent = today.toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric' });
-
-  reflectionEl.value = day.reflection || '';
 }
-reflectionEl.addEventListener('input', () => {
+
+function renderReading(){
   const day = getDay(toKey(today));
-  day.reflection = reflectionEl.value;
+  readingRow.innerHTML = '';
+  READING.forEach(r => {
+    const wrap = document.createElement('div');
+    wrap.className = 'reading-item';
+
+    const label = document.createElement('span');
+    label.className = 'reading-label';
+    label.textContent = `${r.label} (${r.unit})`;
+
+    const stepper = document.createElement('div');
+    stepper.className = 'stepper';
+
+    const minus = document.createElement('button');
+    minus.type = 'button';
+    minus.className = 'stepper-btn';
+    minus.textContent = '−';
+    minus.setAttribute('aria-label', `Decrease ${r.label}`);
+    minus.onclick = () => {
+      day.reading[r.key] = Math.max(0, (day.reading[r.key]||0) - 1);
+      saveAll(allData); renderAll();
+    };
+
+    const val = document.createElement('input');
+    val.type = 'number';
+    val.className = 'stepper-input';
+    val.min = '0';
+    val.value = day.reading[r.key] || 0;
+    val.inputMode = 'numeric';
+    val.onchange = () => {
+      const n = Math.max(0, parseInt(val.value, 10) || 0);
+      day.reading[r.key] = n;
+      saveAll(allData); renderAll();
+    };
+
+    const plus = document.createElement('button');
+    plus.type = 'button';
+    plus.className = 'stepper-btn';
+    plus.textContent = '+';
+    plus.setAttribute('aria-label', `Increase ${r.label}`);
+    plus.onclick = () => {
+      day.reading[r.key] = (day.reading[r.key]||0) + 1;
+      saveAll(allData); renderAll();
+    };
+
+    stepper.append(minus, val, plus);
+    wrap.append(label, stepper);
+    readingRow.appendChild(wrap);
+  });
+}
+
+function renderNegatives(){
+  const day = getDay(toKey(today));
+  negativeRow.innerHTML = '';
+  negativeOptions().forEach(tag => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip negative' + (day.negatives.includes(tag) ? ' on' : '');
+    chip.textContent = tag;
+    chip.setAttribute('aria-pressed', day.negatives.includes(tag) ? 'true' : 'false');
+    chip.onclick = () => {
+      const idx = day.negatives.indexOf(tag);
+      if(idx >= 0) day.negatives.splice(idx, 1);
+      else day.negatives.push(tag);
+      saveAll(allData);
+      renderAll();
+    };
+    negativeRow.appendChild(chip);
+  });
+}
+
+document.getElementById('addNegativeBtn').onclick = () => {
+  const val = window.prompt('Name the slip you want to start tracking (e.g. "Skipped workout", "Snapped at someone"):');
+  if(val && val.trim()){
+    const trimmed = val.trim();
+    if(!negativeOptions().includes(trimmed)){
+      customNegatives.push(trimmed);
+      saveCustomNegatives(customNegatives);
+    }
+    const day = getDay(toKey(today));
+    if(!day.negatives.includes(trimmed)) day.negatives.push(trimmed);
+    saveAll(allData);
+    renderAll();
+  }
+};
+
+function renderMood(){
+  const day = getDay(toKey(today));
+  moodRow.innerHTML = '';
+  MOODS.forEach((emoji, i) => {
+    const level = i + 1;
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'mood-btn' + (day.mood === level ? ' on' : '');
+    btn.textContent = emoji;
+    btn.setAttribute('aria-label', `Mood ${level} of 5`);
+    btn.onclick = () => {
+      day.mood = (day.mood === level) ? 0 : level;
+      saveAll(allData);
+      renderAll();
+    };
+    moodRow.appendChild(btn);
+  });
+}
+
+function renderTodayHeader(){
+  const day = getDay(toKey(today));
+  todayProgress.textContent = `${countChecked(day)}/${TOTAL_ITEMS}`;
+  todayLabel.textContent = today.toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric' });
+}
+
+winField.addEventListener('input', () => {
+  const day = getDay(toKey(today));
+  day.win = winField.value;
+  saveAll(allData);
+});
+slipField.addEventListener('input', () => {
+  const day = getDay(toKey(today));
+  day.slip = slipField.value;
   saveAll(allData);
 });
 
+function syncTextFields(){
+  const day = getDay(toKey(today));
+  if(document.activeElement !== winField) winField.value = day.win || '';
+  if(document.activeElement !== slipField) slipField.value = day.slip || '';
+}
+
 /* ---------- rendering: streak arc + badges ---------- */
 const arcFill = document.getElementById('arcFill');
-const ARC_LENGTH = 283; // matches the path's approximate length
+const ARC_LENGTH = 283;
 const streakCountEl = document.getElementById('streakCount');
 const streakMessageEl = document.getElementById('streakMessage');
 const badgeRow = document.getElementById('badgeRow');
@@ -200,7 +405,7 @@ function renderMosaic(){
   const month = viewMonth.getMonth();
   const firstDay = new Date(year, month, 1);
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const leadBlanks = firstDay.getDay(); // 0=Sun
+  const leadBlanks = firstDay.getDay();
 
   for(let i=0;i<leadBlanks;i++){
     const blank = document.createElement('div');
@@ -216,7 +421,12 @@ function renderMosaic(){
     const cell = document.createElement('div');
     cell.className = `mosaic-cell l${lvl}` + (isSameDay(cellDate, today) ? ' today' : '');
     cell.textContent = d;
-    cell.title = day ? `${countChecked(day)}/9 logged` : 'No entry';
+    if(day && hasSlip(day)){
+      const dot = document.createElement('span');
+      dot.className = 'slip-dot';
+      cell.appendChild(dot);
+    }
+    cell.title = day ? `${countChecked(day)}/${TOTAL_ITEMS} logged` : 'No entry';
     mosaicGrid.appendChild(cell);
   }
 }
@@ -249,7 +459,7 @@ function renderStats(){
     possiblePrayerChecks += PRAYERS.length;
     if(day){
       if(countChecked(day) > 0) logged++;
-      prayerChecks += PRAYERS.filter(p => day.prayers[p]).length;
+      prayerChecks += PRAYERS.filter(p => prayerDone(day.prayers[p])).length;
     }
   }
   statMonthDays.textContent = logged;
@@ -270,7 +480,13 @@ document.getElementById('resetBtn').onclick = () => {
 
 /* ---------- master render ---------- */
 function renderAll(){
-  renderChips();
+  renderPrayers();
+  renderHabits();
+  renderReading();
+  renderNegatives();
+  renderMood();
+  renderTodayHeader();
+  syncTextFields();
   renderStreak();
   renderMosaic();
   renderStats();
