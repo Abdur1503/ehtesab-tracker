@@ -37,6 +37,17 @@
     <ul class="insight-list" id="insightList"></ul>
   </section>
 
+  <section class="card" aria-label="Net score">
+    <div class="card-head"><h2>Net score</h2></div>
+    <div class="month-compare" id="monthCompare"></div>
+    <div class="score-trend" id="scoreTrend" style="margin-bottom:22px;"></div>
+  </section>
+
+  <section class="card" aria-label="Per-habit streaks">
+    <div class="card-head"><h2>Streaks by habit</h2></div>
+    <div class="streak-list" id="streakList"></div>
+  </section>
+
   <section class="card" aria-label="Weekly rhythm">
     <div class="card-head"><h2>Weekly rhythm</h2></div>
 
@@ -59,6 +70,16 @@
       <div class="weekday-title"><span>Qazaa rate</span><span class="sub muted-note">higher = worse</span></div>
       <div class="weekday-bars" id="qazaaBars"></div>
     </div>
+
+    <div class="weekday-block">
+      <div class="weekday-title"><span>Daily revision</span><span class="sub" id="revisionRateLabel"></span></div>
+      <div class="weekday-bars" id="revisionBars"></div>
+    </div>
+  </section>
+
+  <section class="card" aria-label="Revision totals">
+    <div class="card-head"><h2>Revision totals, this month</h2></div>
+    <div class="stats-row" id="revisionStats"></div>
   </section>
 
   <section class="card" aria-label="Slip patterns">

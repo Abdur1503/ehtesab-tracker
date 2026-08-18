@@ -6,14 +6,15 @@ const READING = [
   { key: 'Book', label: 'Book', unit: 'pages' },
   { key: 'Ayat', label: 'Ayat', unit: 'ayat' }
 ];
-const DEFAULT_NEGATIVES = ['Missed Fajr', 'Junk food', 'Doomscrolling', 'Procrastinated', 'Lost temper', 'Skipped gym'];
+const REVISION = ['Daily', 'Weekly', 'Monthly'];
+const DEFAULT_NEGATIVES = ['Missed Fajr', 'Junk food', 'Doomscrolling', 'Procrastinated', 'Lost temper', 'Skipped gym', 'M'];
 
 const STORAGE_KEY = 'ehtesab_days_v2';
 const OLD_STORAGE_KEY = 'ehtesab_days_v1'; // v1: boolean prayers, single reflection field
 const CUSTOM_NEG_KEY = 'ehtesab_custom_negatives_v1';
 const MILESTONES = [3, 7, 14, 30, 60, 100];
 const ARC_CAP = 30; // streak length at which the arc reads "full"
-const TOTAL_ITEMS = PRAYERS.length + HABITS.length + READING.length; // 9
+const TOTAL_ITEMS = PRAYERS.length + HABITS.length + READING.length + REVISION.length; // 12
 
 /* ---------- date helpers ---------- */
 function pad(n){ return n.toString().padStart(2, '0'); }
@@ -24,12 +25,20 @@ function isSameDay(a,b){ return toKey(a) === toKey(b); }
 const today = new Date();
 today.setHours(0,0,0,0);
 
+let selectedOffset = 0; // 0 = today, 1 = yesterday
+function selectedDate(){
+  const d = new Date(today);
+  d.setDate(d.getDate() - selectedOffset);
+  return d;
+}
+
 /* ---------- state ---------- */
 function emptyDay(){
   const prayers = {}; PRAYERS.forEach(p => prayers[p] = 'none');
   const habits = {}; HABITS.forEach(h => habits[h] = false);
   const reading = {}; READING.forEach(r => reading[r.key] = 0);
-  return { prayers, habits, reading, negatives: [], mood: 0, win: '', slip: '' };
+  const revision = {}; REVISION.forEach(r => revision[r] = false);
+  return { prayers, habits, reading, revision, negatives: [], mood: 0, win: '', slip: '' };
 }
 
 function migrateFromV1(){
@@ -94,6 +103,7 @@ function getDay(key){
   d.prayers  = { ...fresh.prayers,  ...(d.prayers||{}) };
   d.habits   = { ...fresh.habits,   ...(d.habits||{}) };
   d.reading  = { ...fresh.reading,  ...(d.reading||{}) };
+  d.revision = { ...fresh.revision, ...(d.revision||{}) };
   d.negatives = Array.isArray(d.negatives) ? d.negatives : [];
   d.mood = typeof d.mood === 'number' ? d.mood : 0;
   d.win = d.win || '';
@@ -106,7 +116,28 @@ function countChecked(day){
   const p = PRAYERS.filter(k => prayerDone(day.prayers[k])).length;
   const h = HABITS.filter(k => day.habits[k]).length;
   const r = READING.filter(r => (day.reading[r.key]||0) > 0).length;
-  return p + h + r;
+  const v = REVISION.filter(k => day.revision[k]).length;
+  return p + h + r + v;
+}
+
+/* ---------- net score ----------
+   Prayed = +1, Mosque = +2, Qazaa = -1, none = 0
+   Habit done = +1 each. Reading logged (>0) = +1 each.
+   Revision checked = +1 each. Each negative tag = -1.
+*/
+function computeDayScore(day){
+  let score = 0;
+  PRAYERS.forEach(p => {
+    const s = day.prayers[p];
+    if(s === 'qazaa') score -= 1;
+    else if(s === 'prayed') score += 1;
+    else if(s === 'mosque') score += 2;
+  });
+  HABITS.forEach(h => { if(day.habits[h]) score += 1; });
+  READING.forEach(r => { if((day.reading[r.key]||0) > 0) score += 1; });
+  REVISION.forEach(r => { if(day.revision[r]) score += 1; });
+  score -= (day.negatives || []).length;
+  return score;
 }
 function allPrayersDone(day){
   return PRAYERS.every(k => prayerDone(day.prayers[k]));
@@ -156,18 +187,28 @@ function bestStreakEver(){
 const prayerList = document.getElementById('prayerList');
 const habitRow  = document.getElementById('habitRow');
 const readingRow = document.getElementById('readingRow');
+const revisionRow = document.getElementById('revisionRow');
 const negativeRow = document.getElementById('negativeRow');
 const moodRow = document.getElementById('moodRow');
 const winField = document.getElementById('winField');
 const slipField = document.getElementById('slipField');
 const todayLabel = document.getElementById('todayLabel');
 const todayProgress = document.getElementById('todayProgress');
+const todayScore = document.getElementById('todayScore');
+const dayToggle = document.getElementById('dayToggle');
+
+dayToggle.querySelectorAll('button').forEach(btn => {
+  btn.onclick = () => {
+    selectedOffset = Number(btn.dataset.offset);
+    renderAll();
+  };
+});
 
 const STATE_LABEL = { qazaa: 'Qazaa', prayed: 'Prayed', mosque: 'Mosque' };
 const MOODS = ['😞','🙁','😐','🙂','😄'];
 
 function renderPrayers(){
-  const key = toKey(today);
+  const key = toKey(selectedDate());
   const day = getDay(key);
   prayerList.innerHTML = '';
 
@@ -201,7 +242,7 @@ function renderPrayers(){
 }
 
 function renderHabits(){
-  const day = getDay(toKey(today));
+  const day = getDay(toKey(selectedDate()));
   habitRow.innerHTML = '';
   HABITS.forEach(name => {
     const chip = document.createElement('button');
@@ -219,7 +260,7 @@ function renderHabits(){
 }
 
 function renderReading(){
-  const day = getDay(toKey(today));
+  const day = getDay(toKey(selectedDate()));
   readingRow.innerHTML = '';
   READING.forEach(r => {
     const wrap = document.createElement('div');
@@ -271,7 +312,7 @@ function renderReading(){
 }
 
 function renderNegatives(){
-  const day = getDay(toKey(today));
+  const day = getDay(toKey(selectedDate()));
   negativeRow.innerHTML = '';
   negativeOptions().forEach(tag => {
     const chip = document.createElement('button');
@@ -298,7 +339,7 @@ document.getElementById('addNegativeBtn').onclick = () => {
       customNegatives.push(trimmed);
       saveCustomNegatives(customNegatives);
     }
-    const day = getDay(toKey(today));
+    const day = getDay(toKey(selectedDate()));
     if(!day.negatives.includes(trimmed)) day.negatives.push(trimmed);
     saveAll(allData);
     renderAll();
@@ -306,7 +347,7 @@ document.getElementById('addNegativeBtn').onclick = () => {
 };
 
 function renderMood(){
-  const day = getDay(toKey(today));
+  const day = getDay(toKey(selectedDate()));
   moodRow.innerHTML = '';
   MOODS.forEach((emoji, i) => {
     const level = i + 1;
@@ -324,25 +365,57 @@ function renderMood(){
   });
 }
 
+function renderRevision(){
+  const day = getDay(toKey(selectedDate()));
+  revisionRow.innerHTML = '';
+  REVISION.forEach(name => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip revision' + (day.revision[name] ? ' on' : '');
+    chip.textContent = name;
+    chip.setAttribute('aria-pressed', day.revision[name] ? 'true' : 'false');
+    chip.onclick = () => {
+      day.revision[name] = !day.revision[name];
+      saveAll(allData);
+      renderAll();
+    };
+    revisionRow.appendChild(chip);
+  });
+}
+
+function renderDayToggle(){
+  dayToggle.querySelectorAll('button').forEach(btn => {
+    const offset = Number(btn.dataset.offset);
+    btn.classList.toggle('on', offset === selectedOffset);
+  });
+}
+
 function renderTodayHeader(){
-  const day = getDay(toKey(today));
+  const day = getDay(toKey(selectedDate()));
   todayProgress.textContent = `${countChecked(day)}/${TOTAL_ITEMS}`;
-  todayLabel.textContent = today.toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric' });
+  const score = computeDayScore(day);
+  todayScore.textContent = score > 0 ? `+${score}` : `${score}`;
+  todayScore.classList.toggle('positive', score > 0);
+  todayScore.classList.toggle('negative', score < 0);
+  todayScore.classList.toggle('neutral', score === 0);
+  const d = selectedDate();
+  const dateStr = d.toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric' });
+  todayLabel.textContent = selectedOffset === 0 ? dateStr : `Yesterday · ${dateStr}`;
 }
 
 winField.addEventListener('input', () => {
-  const day = getDay(toKey(today));
+  const day = getDay(toKey(selectedDate()));
   day.win = winField.value;
   saveAll(allData);
 });
 slipField.addEventListener('input', () => {
-  const day = getDay(toKey(today));
+  const day = getDay(toKey(selectedDate()));
   day.slip = slipField.value;
   saveAll(allData);
 });
 
 function syncTextFields(){
-  const day = getDay(toKey(today));
+  const day = getDay(toKey(selectedDate()));
   if(document.activeElement !== winField) winField.value = day.win || '';
   if(document.activeElement !== slipField) slipField.value = day.slip || '';
 }
@@ -480,9 +553,11 @@ document.getElementById('resetBtn').onclick = () => {
 
 /* ---------- master render ---------- */
 function renderAll(){
+  renderDayToggle();
   renderPrayers();
   renderHabits();
   renderReading();
+  renderRevision();
   renderNegatives();
   renderMood();
   renderTodayHeader();

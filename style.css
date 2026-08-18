@@ -535,3 +535,65 @@ footer{
   .prayer-item{ flex-direction:column; align-items:flex-start; }
   .tag-freq-name{ width:96px; font-size:0.75rem; }
 }
+
+/* ---------- day toggle (today / yesterday) ---------- */
+.day-toggle{
+  display:inline-flex;
+  gap:4px;
+  background:var(--bg-deep);
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:3px;
+  margin-bottom:16px;
+}
+.day-toggle button{
+  font-family:var(--sans);
+  font-size:0.76rem;
+  font-weight:600;
+  padding:6px 14px;
+  border-radius:7px;
+  border:none;
+  background:transparent;
+  color:var(--text-muted);
+  cursor:pointer;
+}
+.day-toggle button.on{ background:var(--surface-2); color:var(--gold); }
+
+/* ---------- revision chips ---------- */
+.chip.revision.on{ background:rgba(217,168,87,0.14); border-color:var(--gold); color:var(--gold); }
+
+/* ---------- score pill ---------- */
+.pill-group{ display:flex; gap:6px; }
+.score-pill{ font-weight:700; }
+.score-pill.positive{ background:rgba(127,163,122,0.18); color:var(--sage); }
+.score-pill.negative{ background:rgba(201,124,109,0.18); color:var(--rose); }
+.score-pill.neutral{ color:var(--text-muted); }
+
+/* ---------- streaks card ---------- */
+.streak-list{ display:flex; flex-direction:column; gap:10px; }
+.streak-row{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  background:var(--bg-deep);
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px 14px;
+}
+.streak-row-name{ font-size:0.85rem; font-weight:500; }
+.streak-row-nums{ display:flex; gap:14px; }
+.streak-row-num{ text-align:center; }
+.streak-row-num span{ display:block; font-family:var(--mono); font-weight:700; font-size:1rem; color:var(--gold); }
+.streak-row-num label{ font-size:0.6rem; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; }
+
+/* ---------- bipolar score trend ---------- */
+.score-trend{ display:flex; align-items:center; gap:4px; height:110px; position:relative; }
+.score-col{ flex:1; display:flex; flex-direction:column; align-items:center; height:100%; position:relative; }
+.score-baseline{ position:absolute; left:0; right:0; top:50%; height:1px; background:var(--line); }
+.score-bar-wrap{ position:relative; width:100%; height:100%; display:flex; align-items:center; }
+.score-bar{ position:absolute; left:15%; right:15%; border-radius:3px; }
+.score-bar.pos{ background:var(--sage); bottom:50%; }
+.score-bar.neg{ background:var(--rose); top:50%; }
+.score-date{ position:absolute; bottom:-16px; font-size:0.56rem; color:var(--text-muted); font-family:var(--mono); left:0; right:0; text-align:center; }
+
+.month-compare{ display:flex; gap:12px; margin-bottom:14px; }

@@ -20,6 +20,25 @@ const today = new Date(); today.setHours(0,0,0,0);
 
 function prayerDone(state){ return state && state !== 'none'; }
 
+const HABITS = ['Gym', 'Upskilling'];
+const READING = [{ key:'Book' }, { key:'Ayat' }];
+const REVISION = ['Daily', 'Weekly', 'Monthly'];
+
+function computeDayScore(day){
+  let score = 0;
+  PRAYERS.forEach(p => {
+    const s = day.prayers && day.prayers[p];
+    if(s === 'qazaa') score -= 1;
+    else if(s === 'prayed') score += 1;
+    else if(s === 'mosque') score += 2;
+  });
+  HABITS.forEach(h => { if(day.habits && day.habits[h]) score += 1; });
+  READING.forEach(r => { if(day.reading && (day.reading[r.key]||0) > 0) score += 1; });
+  REVISION.forEach(r => { if(day.revision && day.revision[r]) score += 1; });
+  score -= (day.negatives || []).length;
+  return score;
+}
+
 /* ---------- guard: no data yet ---------- */
 if(dayKeys.length === 0){
   document.querySelector('main').innerHTML = `
@@ -31,10 +50,137 @@ if(dayKeys.length === 0){
     </div>`;
 } else {
   renderInsightText();
+  renderScoreTrend();
+  renderMonthCompare();
+  renderStreakList();
   renderWeekdayPanels();
+  renderRevisionPanel();
   renderTagFrequency();
   renderMoodSpark();
   renderReadingStats();
+  renderRevisionStats();
+}
+
+/* ---------- net score trend (last 14 days) ---------- */
+function renderScoreTrend(){
+  const el = document.getElementById('scoreTrend');
+  el.innerHTML = '';
+  const scores = [];
+  for(let i = 13; i >= 0; i--){
+    const d = new Date(today); d.setDate(d.getDate() - i);
+    const day = allData[toKey(d)];
+    scores.push({ date: d, score: day ? computeDayScore(day) : null });
+  }
+  const maxAbs = Math.max(1, ...scores.map(s => Math.abs(s.score || 0)));
+
+  scores.forEach(({date, score}) => {
+    const col = document.createElement('div');
+    col.className = 'score-col';
+    const baseline = document.createElement('div');
+    baseline.className = 'score-baseline';
+    const wrap = document.createElement('div');
+    wrap.className = 'score-bar-wrap';
+    if(score !== null && score !== 0){
+      const bar = document.createElement('div');
+      bar.className = 'score-bar ' + (score > 0 ? 'pos' : 'neg');
+      const pct = (Math.abs(score) / maxAbs) * 48; // max 48% of half-height
+      bar.style.height = `${pct}%`;
+      wrap.appendChild(bar);
+    }
+    const label = document.createElement('span');
+    label.className = 'score-date';
+    label.textContent = `${date.getDate()}`;
+    col.append(baseline, wrap, label);
+    el.appendChild(col);
+  });
+}
+
+/* ---------- month-over-month net score comparison ---------- */
+function monthTotalScore(year, month){
+  let total = 0, any = false;
+  dayKeys.forEach(key => {
+    const d = fromKey(key);
+    if(d.getFullYear() === year && d.getMonth() === month){
+      total += computeDayScore(allData[key]);
+      any = true;
+    }
+  });
+  return any ? total : null;
+}
+
+function renderMonthCompare(){
+  const el = document.getElementById('monthCompare');
+  const thisMonth = monthTotalScore(today.getFullYear(), today.getMonth());
+  const lastMonthDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const lastMonth = monthTotalScore(lastMonthDate.getFullYear(), lastMonthDate.getMonth());
+
+  const fmt = v => v === null ? '—' : (v > 0 ? `+${v}` : `${v}`);
+  let deltaNote = '';
+  if(thisMonth !== null && lastMonth !== null){
+    const delta = thisMonth - lastMonth;
+    deltaNote = delta === 0 ? 'same as last month' : (delta > 0 ? `up ${delta} from last month` : `down ${Math.abs(delta)} from last month`);
+  }
+
+  el.innerHTML = `
+    <div class="stat-card"><span class="stat-num">${fmt(thisMonth)}</span><span class="stat-label">this month${deltaNote ? ' — ' + deltaNote : ''}</span></div>
+    <div class="stat-card"><span class="stat-num">${fmt(lastMonth)}</span><span class="stat-label">last month</span></div>
+  `;
+}
+
+/* ---------- per-habit streaks ---------- */
+function currentStreakFor(doneFn){
+  let streak = 0;
+  let cursor = new Date(today);
+  const todayDay = allData[toKey(today)];
+  if(!(todayDay && doneFn(todayDay))) cursor.setDate(cursor.getDate() - 1);
+  while(true){
+    const day = allData[toKey(cursor)];
+    if(day && doneFn(day)){ streak++; cursor.setDate(cursor.getDate() - 1); }
+    else break;
+  }
+  return streak;
+}
+function bestStreakFor(doneFn){
+  let best = 0, run = 0, prev = null;
+  dayKeys.forEach(key => {
+    const day = allData[key];
+    const done = day && doneFn(day);
+    if(done){
+      if(prev){
+        const diff = Math.round((fromKey(key) - fromKey(prev)) / 86400000);
+        run = diff === 1 ? run + 1 : 1;
+      } else run = 1;
+      best = Math.max(best, run);
+      prev = key;
+    } else { run = 0; prev = null; }
+  });
+  return Math.max(best, currentStreakFor(doneFn));
+}
+
+function renderStreakList(){
+  const items = [
+    { name: 'Gym', doneFn: day => !!(day.habits && day.habits['Gym']) },
+    { name: 'Upskilling', doneFn: day => !!(day.habits && day.habits['Upskilling']) },
+    { name: 'Book reading', doneFn: day => !!(day.reading && day.reading['Book'] > 0) },
+    { name: 'Ayat reading', doneFn: day => !!(day.reading && day.reading['Ayat'] > 0) },
+    { name: 'Daily revision', doneFn: day => !!(day.revision && day.revision['Daily']) },
+  ];
+  const list = document.getElementById('streakList');
+  list.innerHTML = '';
+  items.forEach(({name, doneFn}) => {
+    const cur = currentStreakFor(doneFn);
+    const best = bestStreakFor(doneFn);
+    const row = document.createElement('div');
+    row.className = 'streak-row';
+    row.innerHTML = `
+      <span class="streak-row-name">${name}</span>
+      <div class="streak-row-nums">
+        <div class="streak-row-num"><span>${cur}</span><label>current</label></div>
+        <div class="streak-row-num"><span>${best}</span><label>best</label></div>
+      </div>
+    `;
+    list.appendChild(row);
+  });
 }
 
 /* ---------- weekday helpers ---------- */
@@ -144,6 +290,35 @@ function renderMoodSpark(){
   }
 }
 
+/* ---------- revision panel ---------- */
+function renderRevisionPanel(){
+  const vals = weekdayAverages(day => day.revision && day.revision['Daily'] ? 1 : 0);
+  renderBars('revisionBars', vals, false);
+  const rate = vals.reduce((a,b)=>a+b,0);
+  document.getElementById('revisionRateLabel').textContent = `${rate.toFixed(1)} days/week avg`;
+}
+
+function renderRevisionStats(){
+  const year = today.getFullYear(), month = today.getMonth();
+  let daily = 0, weekly = 0, monthly = 0;
+  dayKeys.forEach(key => {
+    const d = fromKey(key);
+    if(d.getFullYear() !== year || d.getMonth() !== month) return;
+    const day = allData[key];
+    if(day.revision){
+      if(day.revision.Daily) daily++;
+      if(day.revision.Weekly) weekly++;
+      if(day.revision.Monthly) monthly++;
+    }
+  });
+  const el = document.getElementById('revisionStats');
+  el.innerHTML = `
+    <div class="stat-card"><span class="stat-num">${daily}</span><span class="stat-label">daily revisions logged</span></div>
+    <div class="stat-card"><span class="stat-num">${weekly}</span><span class="stat-label">weekly revisions logged</span></div>
+    <div class="stat-card"><span class="stat-num">${monthly}</span><span class="stat-label">monthly revisions logged</span></div>
+  `;
+}
+
 /* ---------- reading stats, this month ---------- */
 function renderReadingStats(){
   const year = today.getFullYear(), month = today.getMonth();
@@ -226,6 +401,13 @@ function renderInsightText(){
     } else if(recentMood < priorMood - 0.3){
       bullets.push(`Your logged mood dipped a bit this week — worth checking what changed.`);
     }
+  }
+
+  // Revision consistency
+  const revisionVals = weekdayAverages(day => day.revision && day.revision['Daily'] ? 1 : 0);
+  const revisionRate = revisionVals.reduce((a,b)=>a+b,0);
+  if(revisionRate > 0){
+    bullets.push(`You log daily revision about <strong>${revisionRate.toFixed(1)} days a week</strong>.`);
   }
 
   if(bullets.length === 0){

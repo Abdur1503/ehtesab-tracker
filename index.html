@@ -54,10 +54,18 @@
   </section>
 
   <!-- TODAY CHECK-IN -->
-  <section class="card" aria-label="Today's check-in">
+  <section class="card" aria-label="Daily check-in">
     <div class="card-head">
       <h2 id="todayLabel">Today</h2>
-      <span class="pill" id="todayProgress">0/9</span>
+      <div class="pill-group">
+        <span class="pill" id="todayProgress">0/12</span>
+        <span class="pill score-pill neutral" id="todayScore">+0</span>
+      </div>
+    </div>
+
+    <div class="day-toggle" id="dayToggle">
+      <button type="button" data-offset="0">Today</button>
+      <button type="button" data-offset="1">Yesterday</button>
     </div>
 
     <div class="group">
@@ -74,6 +82,12 @@
     <div class="group">
       <h3 class="group-label">Reading</h3>
       <div class="reading-row" id="readingRow"></div>
+    </div>
+
+    <div class="group">
+      <h3 class="group-label">Revision</h3>
+      <p class="group-hint">Check on the day you actually revised — daily, weekly, or monthly material.</p>
+      <div class="chip-row" id="revisionRow"></div>
     </div>
 
     <div class="group">
