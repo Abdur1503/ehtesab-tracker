@@ -320,7 +320,7 @@ footer{
 }
 
 /* ---------- topbar actions ---------- */
-.topbar-actions{ display:flex; gap:8px; align-items:center; }
+.topbar-actions{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
 .accent-btn{
   text-decoration:none;
   color:var(--gold);

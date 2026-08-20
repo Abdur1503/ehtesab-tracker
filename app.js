@@ -651,9 +651,80 @@ function renderStats(){
     : '0%';
 }
 
+/* ---------- backup / restore ---------- */
+document.getElementById('exportBtn').onclick = () => {
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    app: 'ehtesab-tracker',
+    storageVersion: 'v2',
+    days: allData,
+    customNegatives: customNegatives,
+    customPositives: customPositives
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `ehtesab-backup-${toKey(today)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+};
+
+const importFileInput = document.getElementById('importFile');
+document.getElementById('importBtn').onclick = () => importFileInput.click();
+
+importFileInput.addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  e.target.value = ''; // allow re-selecting the same file later
+  if(!file) return;
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    let parsed;
+    try{
+      parsed = JSON.parse(reader.result);
+    }catch(err){
+      alert('That file isn\u2019t valid JSON — restore cancelled.');
+      return;
+    }
+    // Accept either a full backup payload {days:{...}} or a raw days object
+    const incomingDays = (parsed && typeof parsed === 'object' && parsed.days) ? parsed.days : parsed;
+    if(!incomingDays || typeof incomingDays !== 'object' || Array.isArray(incomingDays)){
+      alert('That doesn\u2019t look like an Ehtesab backup file — restore cancelled.');
+      return;
+    }
+
+    const replace = confirm(
+      'Restoring a backup.\n\nOK = merge with your current data (backup wins on any matching date).\nCancel = wipe current data and replace it entirely with the backup.'
+    );
+
+    if(replace){
+      allData = { ...allData, ...incomingDays };
+    } else {
+      allData = { ...incomingDays };
+    }
+    saveAll(allData);
+
+    if(parsed && Array.isArray(parsed.customNegatives)){
+      parsed.customNegatives.forEach(n => { if(!customNegatives.includes(n)) customNegatives.push(n); });
+      saveCustomNegatives(customNegatives);
+    }
+    if(parsed && Array.isArray(parsed.customPositives)){
+      parsed.customPositives.forEach(p => { if(!customPositives.includes(p)) customPositives.push(p); });
+      saveCustomPositives(customPositives);
+    }
+
+    renderAll();
+    alert('Backup restored.');
+  };
+  reader.readAsText(file);
+});
+
 /* ---------- reset ---------- */
 document.getElementById('resetBtn').onclick = () => {
-  if(confirm('Clear all tracker data on this device? This cannot be undone.')){
+  if(confirm('Clear all tracker data on this device? This cannot be undone. Consider tapping Backup first.')){
     allData = {};
     saveAll(allData);
     renderAll();

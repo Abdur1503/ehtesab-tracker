@@ -1,4 +1,4 @@
-const CACHE = 'ehtesab-v2';
+const CACHE = 'ehtesab-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -25,8 +25,18 @@ self.addEventListener('activate', (e) => {
   self.clients.claim();
 });
 
+// Network-first: always try to fetch the latest file from GitHub Pages first.
+// Only fall back to the cached copy if the network is unavailable (offline).
+// This means future updates show up automatically — no manual cache-busting needed.
 self.addEventListener('fetch', (e) => {
+  if(e.request.method !== 'GET') return;
   e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
+    fetch(e.request)
+      .then(response => {
+        const copy = response.clone();
+        caches.open(CACHE).then(cache => cache.put(e.request, copy));
+        return response;
+      })
+      .catch(() => caches.match(e.request))
   );
 });
