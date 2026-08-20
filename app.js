@@ -8,10 +8,12 @@ const READING = [
 ];
 const REVISION = ['Daily', 'Weekly', 'Monthly'];
 const DEFAULT_NEGATIVES = ['Missed Fajr', 'Junk food', 'Doomscrolling', 'Procrastinated', 'Lost temper', 'Skipped gym', 'M'];
+const DEFAULT_POSITIVES = ['Helped someone', 'Extra Quran', 'Woke up early', 'Ate clean', 'No phone before Fajr'];
 
 const STORAGE_KEY = 'ehtesab_days_v2';
 const OLD_STORAGE_KEY = 'ehtesab_days_v1'; // v1: boolean prayers, single reflection field
 const CUSTOM_NEG_KEY = 'ehtesab_custom_negatives_v1';
+const CUSTOM_POS_KEY = 'ehtesab_custom_positives_v1';
 const MILESTONES = [3, 7, 14, 30, 60, 100];
 const ARC_CAP = 30; // streak length at which the arc reads "full"
 const TOTAL_ITEMS = PRAYERS.length + HABITS.length + READING.length + REVISION.length; // 12
@@ -25,11 +27,14 @@ function isSameDay(a,b){ return toKey(a) === toKey(b); }
 const today = new Date();
 today.setHours(0,0,0,0);
 
-let selectedOffset = 0; // 0 = today, 1 = yesterday
-function selectedDate(){
-  const d = new Date(today);
-  d.setDate(d.getDate() - selectedOffset);
-  return d;
+const EDIT_WINDOW_DAYS = 7; // today + 6 days back are editable
+
+let selectedKey = toKey(today);
+function selectedDate(){ return fromKey(selectedKey); }
+function daysAgo(dateObj){ return Math.round((today - dateObj) / 86400000); }
+function isEditableDate(dateObj){
+  const diff = daysAgo(dateObj);
+  return diff >= 0 && diff <= EDIT_WINDOW_DAYS - 1;
 }
 
 /* ---------- state ---------- */
@@ -38,7 +43,7 @@ function emptyDay(){
   const habits = {}; HABITS.forEach(h => habits[h] = false);
   const reading = {}; READING.forEach(r => reading[r.key] = 0);
   const revision = {}; REVISION.forEach(r => revision[r] = false);
-  return { prayers, habits, reading, revision, negatives: [], mood: 0, win: '', slip: '' };
+  return { prayers, habits, reading, revision, negatives: [], positives: [], mood: 0, win: '', slip: '' };
 }
 
 function migrateFromV1(){
@@ -86,14 +91,28 @@ function loadCustomNegatives(){
 function saveCustomNegatives(list){
   try{ localStorage.setItem(CUSTOM_NEG_KEY, JSON.stringify(list)); }catch(e){}
 }
+function loadCustomPositives(){
+  try{
+    const raw = localStorage.getItem(CUSTOM_POS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  }catch(e){ return []; }
+}
+function saveCustomPositives(list){
+  try{ localStorage.setItem(CUSTOM_POS_KEY, JSON.stringify(list)); }catch(e){}
+}
 
 let allData = loadAll();
 let customNegatives = loadCustomNegatives();
+let customPositives = loadCustomPositives();
 let viewMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
 function negativeOptions(){
   const custom = customNegatives.filter(n => !DEFAULT_NEGATIVES.includes(n));
   return [...DEFAULT_NEGATIVES, ...custom];
+}
+function positiveOptions(){
+  const custom = customPositives.filter(n => !DEFAULT_POSITIVES.includes(n));
+  return [...DEFAULT_POSITIVES, ...custom];
 }
 
 function getDay(key){
@@ -105,6 +124,7 @@ function getDay(key){
   d.reading  = { ...fresh.reading,  ...(d.reading||{}) };
   d.revision = { ...fresh.revision, ...(d.revision||{}) };
   d.negatives = Array.isArray(d.negatives) ? d.negatives : [];
+  d.positives = Array.isArray(d.positives) ? d.positives : [];
   d.mood = typeof d.mood === 'number' ? d.mood : 0;
   d.win = d.win || '';
   d.slip = d.slip || '';
@@ -137,6 +157,7 @@ function computeDayScore(day){
   READING.forEach(r => { if((day.reading[r.key]||0) > 0) score += 1; });
   REVISION.forEach(r => { if(day.revision[r]) score += 1; });
   score -= (day.negatives || []).length;
+  score += (day.positives || []).length;
   return score;
 }
 function allPrayersDone(day){
@@ -189,20 +210,21 @@ const habitRow  = document.getElementById('habitRow');
 const readingRow = document.getElementById('readingRow');
 const revisionRow = document.getElementById('revisionRow');
 const negativeRow = document.getElementById('negativeRow');
+const positiveRow = document.getElementById('positiveRow');
 const moodRow = document.getElementById('moodRow');
 const winField = document.getElementById('winField');
 const slipField = document.getElementById('slipField');
 const todayLabel = document.getElementById('todayLabel');
 const todayProgress = document.getElementById('todayProgress');
 const todayScore = document.getElementById('todayScore');
-const dayToggle = document.getElementById('dayToggle');
+const readonlyNote = document.getElementById('readonlyNote');
+const checkinCard = document.getElementById('checkinCard');
 
-dayToggle.querySelectorAll('button').forEach(btn => {
-  btn.onclick = () => {
-    selectedOffset = Number(btn.dataset.offset);
-    renderAll();
-  };
-});
+function selectDay(key){
+  selectedKey = key;
+  renderAll();
+  checkinCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 
 const STATE_LABEL = { qazaa: 'Qazaa', prayed: 'Prayed', mosque: 'Mosque' };
 const MOODS = ['😞','🙁','😐','🙂','😄'];
@@ -210,6 +232,7 @@ const MOODS = ['😞','🙁','😐','🙂','😄'];
 function renderPrayers(){
   const key = toKey(selectedDate());
   const day = getDay(key);
+  const editable = isEditableDate(selectedDate());
   prayerList.innerHTML = '';
 
   PRAYERS.forEach(name => {
@@ -229,11 +252,15 @@ function renderPrayers(){
       btn.className = `state-btn state-${state}` + (day.prayers[name] === state ? ' on' : '');
       btn.textContent = STATE_LABEL[state];
       btn.setAttribute('aria-pressed', day.prayers[name] === state ? 'true' : 'false');
-      btn.onclick = () => {
-        day.prayers[name] = (day.prayers[name] === state) ? 'none' : state;
-        saveAll(allData);
-        renderAll();
-      };
+      if(editable){
+        btn.onclick = () => {
+          day.prayers[name] = (day.prayers[name] === state) ? 'none' : state;
+          saveAll(allData);
+          renderAll();
+        };
+      } else {
+        btn.disabled = true;
+      }
       btnWrap.appendChild(btn);
     });
     row.appendChild(btnWrap);
@@ -243,6 +270,7 @@ function renderPrayers(){
 
 function renderHabits(){
   const day = getDay(toKey(selectedDate()));
+  const editable = isEditableDate(selectedDate());
   habitRow.innerHTML = '';
   HABITS.forEach(name => {
     const chip = document.createElement('button');
@@ -250,17 +278,22 @@ function renderHabits(){
     chip.className = 'chip habit' + (day.habits[name] ? ' on' : '');
     chip.textContent = name;
     chip.setAttribute('aria-pressed', day.habits[name] ? 'true' : 'false');
-    chip.onclick = () => {
-      day.habits[name] = !day.habits[name];
-      saveAll(allData);
-      renderAll();
-    };
+    if(editable){
+      chip.onclick = () => {
+        day.habits[name] = !day.habits[name];
+        saveAll(allData);
+        renderAll();
+      };
+    } else {
+      chip.disabled = true;
+    }
     habitRow.appendChild(chip);
   });
 }
 
 function renderReading(){
   const day = getDay(toKey(selectedDate()));
+  const editable = isEditableDate(selectedDate());
   readingRow.innerHTML = '';
   READING.forEach(r => {
     const wrap = document.createElement('div');
@@ -278,6 +311,7 @@ function renderReading(){
     minus.className = 'stepper-btn';
     minus.textContent = '−';
     minus.setAttribute('aria-label', `Decrease ${r.label}`);
+    minus.disabled = !editable;
     minus.onclick = () => {
       day.reading[r.key] = Math.max(0, (day.reading[r.key]||0) - 1);
       saveAll(allData); renderAll();
@@ -289,6 +323,7 @@ function renderReading(){
     val.min = '0';
     val.value = day.reading[r.key] || 0;
     val.inputMode = 'numeric';
+    val.disabled = !editable;
     val.onchange = () => {
       const n = Math.max(0, parseInt(val.value, 10) || 0);
       day.reading[r.key] = n;
@@ -300,6 +335,7 @@ function renderReading(){
     plus.className = 'stepper-btn';
     plus.textContent = '+';
     plus.setAttribute('aria-label', `Increase ${r.label}`);
+    plus.disabled = !editable;
     plus.onclick = () => {
       day.reading[r.key] = (day.reading[r.key]||0) + 1;
       saveAll(allData); renderAll();
@@ -313,6 +349,7 @@ function renderReading(){
 
 function renderNegatives(){
   const day = getDay(toKey(selectedDate()));
+  const editable = isEditableDate(selectedDate());
   negativeRow.innerHTML = '';
   negativeOptions().forEach(tag => {
     const chip = document.createElement('button');
@@ -320,18 +357,23 @@ function renderNegatives(){
     chip.className = 'chip negative' + (day.negatives.includes(tag) ? ' on' : '');
     chip.textContent = tag;
     chip.setAttribute('aria-pressed', day.negatives.includes(tag) ? 'true' : 'false');
-    chip.onclick = () => {
-      const idx = day.negatives.indexOf(tag);
-      if(idx >= 0) day.negatives.splice(idx, 1);
-      else day.negatives.push(tag);
-      saveAll(allData);
-      renderAll();
-    };
+    if(editable){
+      chip.onclick = () => {
+        const idx = day.negatives.indexOf(tag);
+        if(idx >= 0) day.negatives.splice(idx, 1);
+        else day.negatives.push(tag);
+        saveAll(allData);
+        renderAll();
+      };
+    } else {
+      chip.disabled = true;
+    }
     negativeRow.appendChild(chip);
   });
 }
 
 document.getElementById('addNegativeBtn').onclick = () => {
+  if(!isEditableDate(selectedDate())) return;
   const val = window.prompt('Name the slip you want to start tracking (e.g. "Skipped workout", "Snapped at someone"):');
   if(val && val.trim()){
     const trimmed = val.trim();
@@ -346,8 +388,50 @@ document.getElementById('addNegativeBtn').onclick = () => {
   }
 };
 
+function renderPositives(){
+  const day = getDay(toKey(selectedDate()));
+  const editable = isEditableDate(selectedDate());
+  positiveRow.innerHTML = '';
+  positiveOptions().forEach(tag => {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chip positive' + (day.positives.includes(tag) ? ' on' : '');
+    chip.textContent = tag;
+    chip.setAttribute('aria-pressed', day.positives.includes(tag) ? 'true' : 'false');
+    if(editable){
+      chip.onclick = () => {
+        const idx = day.positives.indexOf(tag);
+        if(idx >= 0) day.positives.splice(idx, 1);
+        else day.positives.push(tag);
+        saveAll(allData);
+        renderAll();
+      };
+    } else {
+      chip.disabled = true;
+    }
+    positiveRow.appendChild(chip);
+  });
+}
+
+document.getElementById('addPositiveBtn').onclick = () => {
+  if(!isEditableDate(selectedDate())) return;
+  const val = window.prompt('Name the win you want to start tracking (e.g. "Called family", "Fixed a bug"):');
+  if(val && val.trim()){
+    const trimmed = val.trim();
+    if(!positiveOptions().includes(trimmed)){
+      customPositives.push(trimmed);
+      saveCustomPositives(customPositives);
+    }
+    const day = getDay(toKey(selectedDate()));
+    if(!day.positives.includes(trimmed)) day.positives.push(trimmed);
+    saveAll(allData);
+    renderAll();
+  }
+};
+
 function renderMood(){
   const day = getDay(toKey(selectedDate()));
+  const editable = isEditableDate(selectedDate());
   moodRow.innerHTML = '';
   MOODS.forEach((emoji, i) => {
     const level = i + 1;
@@ -356,17 +440,22 @@ function renderMood(){
     btn.className = 'mood-btn' + (day.mood === level ? ' on' : '');
     btn.textContent = emoji;
     btn.setAttribute('aria-label', `Mood ${level} of 5`);
-    btn.onclick = () => {
-      day.mood = (day.mood === level) ? 0 : level;
-      saveAll(allData);
-      renderAll();
-    };
+    if(editable){
+      btn.onclick = () => {
+        day.mood = (day.mood === level) ? 0 : level;
+        saveAll(allData);
+        renderAll();
+      };
+    } else {
+      btn.disabled = true;
+    }
     moodRow.appendChild(btn);
   });
 }
 
 function renderRevision(){
   const day = getDay(toKey(selectedDate()));
+  const editable = isEditableDate(selectedDate());
   revisionRow.innerHTML = '';
   REVISION.forEach(name => {
     const chip = document.createElement('button');
@@ -374,20 +463,25 @@ function renderRevision(){
     chip.className = 'chip revision' + (day.revision[name] ? ' on' : '');
     chip.textContent = name;
     chip.setAttribute('aria-pressed', day.revision[name] ? 'true' : 'false');
-    chip.onclick = () => {
-      day.revision[name] = !day.revision[name];
-      saveAll(allData);
-      renderAll();
-    };
+    if(editable){
+      chip.onclick = () => {
+        day.revision[name] = !day.revision[name];
+        saveAll(allData);
+        renderAll();
+      };
+    } else {
+      chip.disabled = true;
+    }
     revisionRow.appendChild(chip);
   });
 }
 
-function renderDayToggle(){
-  dayToggle.querySelectorAll('button').forEach(btn => {
-    const offset = Number(btn.dataset.offset);
-    btn.classList.toggle('on', offset === selectedOffset);
-  });
+function renderReadOnlyState(){
+  const editable = isEditableDate(selectedDate());
+  checkinCard.classList.toggle('readonly', !editable);
+  readonlyNote.style.display = editable ? 'none' : 'block';
+  winField.disabled = !editable;
+  slipField.disabled = !editable;
 }
 
 function renderTodayHeader(){
@@ -399,8 +493,13 @@ function renderTodayHeader(){
   todayScore.classList.toggle('negative', score < 0);
   todayScore.classList.toggle('neutral', score === 0);
   const d = selectedDate();
+  const diff = daysAgo(d);
   const dateStr = d.toLocaleDateString(undefined, { weekday:'long', month:'long', day:'numeric' });
-  todayLabel.textContent = selectedOffset === 0 ? dateStr : `Yesterday · ${dateStr}`;
+  let prefix = '';
+  if(diff === 0) prefix = '';
+  else if(diff === 1) prefix = 'Yesterday · ';
+  else prefix = `${diff} days ago · `;
+  todayLabel.textContent = prefix + dateStr;
 }
 
 winField.addEventListener('input', () => {
@@ -491,15 +590,25 @@ function renderMosaic(){
     const key = toKey(cellDate);
     const day = allData[key];
     const lvl = levelFor(day);
+    const isFuture = cellDate > today;
     const cell = document.createElement('div');
-    cell.className = `mosaic-cell l${lvl}` + (isSameDay(cellDate, today) ? ' today' : '');
+    cell.className = `mosaic-cell l${lvl}`
+      + (isSameDay(cellDate, today) ? ' today' : '')
+      + (key === selectedKey ? ' selected' : '')
+      + (isFuture ? ' future' : '');
     cell.textContent = d;
     if(day && hasSlip(day)){
       const dot = document.createElement('span');
       dot.className = 'slip-dot';
       cell.appendChild(dot);
     }
-    cell.title = day ? `${countChecked(day)}/${TOTAL_ITEMS} logged` : 'No entry';
+    if(!isFuture){
+      const editable = isEditableDate(cellDate);
+      cell.title = (day ? `${countChecked(day)}/${TOTAL_ITEMS} logged` : 'No entry') + (editable ? ' — tap to edit' : ' — tap to view (read-only)');
+      cell.onclick = () => selectDay(key);
+    } else {
+      cell.title = 'Future date';
+    }
     mosaicGrid.appendChild(cell);
   }
 }
@@ -553,12 +662,13 @@ document.getElementById('resetBtn').onclick = () => {
 
 /* ---------- master render ---------- */
 function renderAll(){
-  renderDayToggle();
+  renderReadOnlyState();
   renderPrayers();
   renderHabits();
   renderReading();
   renderRevision();
   renderNegatives();
+  renderPositives();
   renderMood();
   renderTodayHeader();
   syncTextFields();

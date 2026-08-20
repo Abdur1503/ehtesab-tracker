@@ -54,7 +54,7 @@
   </section>
 
   <!-- TODAY CHECK-IN -->
-  <section class="card" aria-label="Daily check-in">
+  <section class="card" id="checkinCard" aria-label="Daily check-in">
     <div class="card-head">
       <h2 id="todayLabel">Today</h2>
       <div class="pill-group">
@@ -63,10 +63,7 @@
       </div>
     </div>
 
-    <div class="day-toggle" id="dayToggle">
-      <button type="button" data-offset="0">Today</button>
-      <button type="button" data-offset="1">Yesterday</button>
-    </div>
+    <p class="readonly-note" id="readonlyNote" style="display:none;">📖 Read-only — this day is outside the 7-day edit window. Tap a date within the last 7 days on the calendar below to edit.</p>
 
     <div class="group">
       <h3 class="group-label">Prayers</h3>
@@ -88,6 +85,13 @@
       <h3 class="group-label">Revision</h3>
       <p class="group-hint">Check on the day you actually revised — daily, weekly, or monthly material.</p>
       <div class="chip-row" id="revisionRow"></div>
+    </div>
+
+    <div class="group">
+      <h3 class="group-label">Boosted today?</h3>
+      <p class="group-hint">Tap anything that applies, or add your own.</p>
+      <div class="chip-row positive-row" id="positiveRow"></div>
+      <button id="addPositiveBtn" class="add-chip-btn" type="button">+ Add</button>
     </div>
 
     <div class="group">

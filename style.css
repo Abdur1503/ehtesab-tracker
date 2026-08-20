@@ -408,6 +408,7 @@ footer{
 
 /* ---------- negative chips ---------- */
 .chip.negative.on{ background:rgba(201,124,109,0.16); border-color:var(--rose); color:var(--rose); }
+.chip.positive.on{ background:rgba(127,163,122,0.16); border-color:var(--sage); color:var(--sage); }
 .add-chip-btn{
   margin-top:8px;
   background:transparent;
@@ -521,6 +522,7 @@ footer{
 .tag-freq-name{ font-size:0.8rem; width:120px; flex:0 0 auto; color:var(--text); }
 .tag-freq-track{ flex:1; height:10px; background:var(--bg-deep); border-radius:5px; overflow:hidden; }
 .tag-freq-fill{ height:100%; background:var(--rose); border-radius:5px; }
+.tag-freq-fill.pos-fill{ background:var(--sage); }
 .tag-freq-count{ font-family:var(--mono); font-size:0.72rem; color:var(--text-muted); width:26px; text-align:right; }
 
 .mood-sparkline{ display:flex; align-items:flex-end; gap:4px; height:70px; }
@@ -536,28 +538,31 @@ footer{
   .tag-freq-name{ width:96px; font-size:0.75rem; }
 }
 
-/* ---------- day toggle (today / yesterday) ---------- */
-.day-toggle{
-  display:inline-flex;
-  gap:4px;
-  background:var(--bg-deep);
-  border:1px solid var(--line);
+/* ---------- read-only day state ---------- */
+.readonly-note{
+  background:rgba(217,168,87,0.1);
+  border:1px solid var(--gold-soft);
+  color:var(--gold);
+  font-size:0.78rem;
   border-radius:10px;
-  padding:3px;
+  padding:10px 12px;
   margin-bottom:16px;
 }
-.day-toggle button{
-  font-family:var(--sans);
-  font-size:0.76rem;
-  font-weight:600;
-  padding:6px 14px;
-  border-radius:7px;
-  border:none;
-  background:transparent;
-  color:var(--text-muted);
-  cursor:pointer;
+.card.readonly .prayer-item,
+.card.readonly .stepper{ opacity:0.75; }
+button:disabled, input:disabled, textarea:disabled{
+  cursor:not-allowed !important;
+  opacity:0.5;
 }
-.day-toggle button.on{ background:var(--surface-2); color:var(--gold); }
+.state-btn:disabled.on,
+.chip:disabled.on,
+.mood-btn:disabled.on{ opacity:0.9; }
+
+/* ---------- mosaic cell selection ---------- */
+.mosaic-cell{ cursor:pointer; }
+.mosaic-cell.future{ cursor:default; opacity:0.3; }
+.mosaic-cell.selected{ box-shadow:0 0 0 2px var(--gold) inset; }
+.mosaic-cell.selected.today{ box-shadow:0 0 0 2px var(--sage) inset; }
 
 /* ---------- revision chips ---------- */
 .chip.revision.on{ background:rgba(217,168,87,0.14); border-color:var(--gold); color:var(--gold); }
@@ -597,3 +602,16 @@ footer{
 .score-date{ position:absolute; bottom:-16px; font-size:0.56rem; color:var(--text-muted); font-family:var(--mono); left:0; right:0; text-align:center; }
 
 .month-compare{ display:flex; gap:12px; margin-bottom:14px; }
+
+/* ---------- per-prayer breakdown ---------- */
+.pb-row{ margin-bottom:12px; }
+.pb-row:last-child{ margin-bottom:0; }
+.pb-row-head{ display:flex; justify-content:space-between; font-size:0.82rem; color:var(--text); margin-bottom:4px; }
+.pb-row-head .pb-pct{ color:var(--text-muted); font-family:var(--mono); font-size:0.72rem; }
+.pb-track{ display:flex; height:14px; border-radius:7px; overflow:hidden; background:var(--bg-deep); border:1px solid var(--line); }
+.pb-seg-mosque{ background:var(--gold); }
+.pb-seg-prayed{ background:var(--sage); }
+.pb-seg-qazaa{ background:var(--rose); }
+.pb-legend{ display:flex; gap:16px; margin-top:14px; font-size:0.74rem; color:var(--text-muted); }
+.pb-legend span{ display:flex; align-items:center; gap:6px; }
+.pb-swatch{ width:10px; height:10px; border-radius:3px; display:inline-block; }

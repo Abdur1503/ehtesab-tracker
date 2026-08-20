@@ -36,6 +36,7 @@ function computeDayScore(day){
   READING.forEach(r => { if(day.reading && (day.reading[r.key]||0) > 0) score += 1; });
   REVISION.forEach(r => { if(day.revision && day.revision[r]) score += 1; });
   score -= (day.negatives || []).length;
+  score += (day.positives || []).length;
   return score;
 }
 
@@ -53,9 +54,11 @@ if(dayKeys.length === 0){
   renderScoreTrend();
   renderMonthCompare();
   renderStreakList();
+  renderPrayerBreakdown();
   renderWeekdayPanels();
   renderRevisionPanel();
   renderTagFrequency();
+  renderPosFrequency();
   renderMoodSpark();
   renderReadingStats();
   renderRevisionStats();
@@ -240,6 +243,40 @@ function renderWeekdayPanels(){
   renderBars('qazaaBars', qazaaVals, true);
 }
 
+/* ---------- per-prayer breakdown ---------- */
+function renderPrayerBreakdown(){
+  const el = document.getElementById('prayerBreakdownRows');
+  el.innerHTML = '';
+  const total = dayKeys.length;
+  PRAYERS.forEach(name => {
+    let mosque = 0, prayed = 0, qazaa = 0;
+    dayKeys.forEach(key => {
+      const s = allData[key].prayers && allData[key].prayers[name];
+      if(s === 'mosque') mosque++;
+      else if(s === 'prayed') prayed++;
+      else if(s === 'qazaa') qazaa++;
+    });
+    const mosquePct = total ? (mosque/total)*100 : 0;
+    const prayedPct = total ? (prayed/total)*100 : 0;
+    const qazaaPct = total ? (qazaa/total)*100 : 0;
+
+    const row = document.createElement('div');
+    row.className = 'pb-row';
+    row.innerHTML = `
+      <div class="pb-row-head">
+        <span>${name}</span>
+        <span class="pb-pct">${Math.round(qazaaPct)}% qazaa</span>
+      </div>
+      <div class="pb-track">
+        <div class="pb-seg-mosque" style="width:${mosquePct}%"></div>
+        <div class="pb-seg-prayed" style="width:${prayedPct}%"></div>
+        <div class="pb-seg-qazaa" style="width:${qazaaPct}%"></div>
+      </div>
+    `;
+    el.appendChild(row);
+  });
+}
+
 /* ---------- negative tag frequency ---------- */
 function renderTagFrequency(){
   const counts = {};
@@ -261,6 +298,33 @@ function renderTagFrequency(){
     row.innerHTML = `
       <span class="tag-freq-name">${tag}</span>
       <span class="tag-freq-track"><span class="tag-freq-fill" style="width:${(count/max)*100}%"></span></span>
+      <span class="tag-freq-count">${count}</span>
+    `;
+    list.appendChild(row);
+  });
+}
+
+/* ---------- positive tag frequency ---------- */
+function renderPosFrequency(){
+  const counts = {};
+  dayKeys.forEach(key => {
+    const day = allData[key];
+    (day.positives || []).forEach(tag => { counts[tag] = (counts[tag]||0) + 1; });
+  });
+  const entries = Object.entries(counts).sort((a,b) => b[1]-a[1]).slice(0, 8);
+  const list = document.getElementById('posFreqList');
+  list.innerHTML = '';
+  if(entries.length === 0){
+    list.innerHTML = '<p class="empty-note">No boosts logged yet — tag a few wins on the tracker page.</p>';
+    return;
+  }
+  const max = entries[0][1];
+  entries.forEach(([tag, count]) => {
+    const row = document.createElement('div');
+    row.className = 'tag-freq-row';
+    row.innerHTML = `
+      <span class="tag-freq-name">${tag}</span>
+      <span class="tag-freq-track"><span class="tag-freq-fill pos-fill" style="width:${(count/max)*100}%"></span></span>
       <span class="tag-freq-count">${count}</span>
     `;
     list.appendChild(row);
@@ -375,12 +439,34 @@ function renderInsightText(){
     bullets.push(`<strong>${Math.round((mosqueCount/prayerTotal)*100)}%</strong> of your logged prayers were in the mosque.`);
   }
 
+  // Weakest specific prayer (highest qazaa rate)
+  const total = dayKeys.length;
+  if(total > 0){
+    let weakest = null, weakestRate = 0;
+    PRAYERS.forEach(name => {
+      const qazaaCount = dayKeys.filter(key => allData[key].prayers && allData[key].prayers[name] === 'qazaa').length;
+      const rate = qazaaCount / total;
+      if(rate > weakestRate){ weakestRate = rate; weakest = name; }
+    });
+    if(weakest){
+      bullets.push(`<strong>${weakest}</strong> is your prayer most often marked qazaa — <strong>${Math.round(weakestRate*100)}%</strong> of logged days.`);
+    }
+  }
+
   // Top negative tag
   const negCounts = {};
   dayKeys.forEach(key => (allData[key].negatives||[]).forEach(t => negCounts[t] = (negCounts[t]||0)+1));
   const topNeg = Object.entries(negCounts).sort((a,b)=>b[1]-a[1])[0];
   if(topNeg){
     bullets.push(`Your most logged slip is <strong>"${topNeg[0]}"</strong> — ${topNeg[1]} time${topNeg[1]>1?'s':''} so far.`);
+  }
+
+  // Top positive tag
+  const posCounts = {};
+  dayKeys.forEach(key => (allData[key].positives||[]).forEach(t => posCounts[t] = (posCounts[t]||0)+1));
+  const topPos = Object.entries(posCounts).sort((a,b)=>b[1]-a[1])[0];
+  if(topPos){
+    bullets.push(`Your most logged boost is <strong>"${topPos[0]}"</strong> — ${topPos[1]} time${topPos[1]>1?'s':''} so far.`);
   }
 
   // Mood trend, last 7 vs previous 7
