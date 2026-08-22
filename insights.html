@@ -112,6 +112,41 @@
     <div class="stats-row" id="readingStats"></div>
   </section>
 
+  <section class="card" aria-label="Monthly report" id="monthlyReportCard">
+    <div class="card-head">
+      <h2 id="reportMonthLabel">Monthly Report</h2>
+      <div class="nav-btns">
+        <button id="prevReportMonth" class="icon-btn" aria-label="Previous month">‹</button>
+        <button id="nextReportMonth" class="icon-btn" aria-label="Next month">›</button>
+      </div>
+    </div>
+
+    <div class="stats-row" id="reportSummaryStats"></div>
+
+    <h3 class="report-subhead">Prayer breakdown</h3>
+    <div id="reportPrayerBreakdown"></div>
+    <div class="pb-legend">
+      <span><span class="pb-swatch" style="background:var(--gold)"></span>Mosque</span>
+      <span><span class="pb-swatch" style="background:var(--sage)"></span>Prayed</span>
+      <span><span class="pb-swatch" style="background:var(--rose)"></span>Qazaa</span>
+    </div>
+
+    <h3 class="report-subhead">Top slips</h3>
+    <div class="tag-freq-list" id="reportSlips"></div>
+
+    <h3 class="report-subhead">Top boosts</h3>
+    <div class="tag-freq-list" id="reportBoosts"></div>
+
+    <h3 class="report-subhead">Reading &amp; revision</h3>
+    <div class="stats-row" id="reportReadingRevision"></div>
+
+    <div class="report-export-row">
+      <button id="exportExcelBtn" class="ghost-btn accent-btn" type="button">Export Excel</button>
+      <button id="exportImageBtn" class="ghost-btn accent-btn" type="button">Export Image</button>
+    </div>
+    <p class="export-status" id="exportStatus"></p>
+  </section>
+
 </main>
 
 <footer>

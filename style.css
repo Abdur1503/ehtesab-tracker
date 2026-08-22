@@ -615,3 +615,26 @@ button:disabled, input:disabled, textarea:disabled{
 .pb-legend{ display:flex; gap:16px; margin-top:14px; font-size:0.74rem; color:var(--text-muted); }
 .pb-legend span{ display:flex; align-items:center; gap:6px; }
 .pb-swatch{ width:10px; height:10px; border-radius:3px; display:inline-block; }
+
+/* ---------- monthly report ---------- */
+.report-subhead{
+  font-family:var(--serif);
+  font-size:0.95rem;
+  font-weight:600;
+  margin:20px 0 10px;
+  color:var(--text);
+}
+.report-export-row{
+  display:flex;
+  gap:10px;
+  margin-top:18px;
+  flex-wrap:wrap;
+}
+.report-export-row .ghost-btn{ flex:1; text-align:center; min-width:130px; }
+.export-status{
+  margin:10px 0 0;
+  font-size:0.76rem;
+  color:var(--text-muted);
+  text-align:center;
+  min-height:1em;
+}

@@ -62,6 +62,7 @@ if(dayKeys.length === 0){
   renderMoodSpark();
   renderReadingStats();
   renderRevisionStats();
+  renderMonthlyReport();
 }
 
 /* ---------- net score trend (last 14 days) ---------- */
@@ -503,3 +504,291 @@ function renderInsightText(){
   const list = document.getElementById('insightList');
   list.innerHTML = bullets.map(b => `<li>${b}</li>`).join('');
 }
+
+/* ================= MONTHLY REPORT ================= */
+let reportMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+function monthKeysFor(year, month){
+  return dayKeys.filter(k => {
+    const d = fromKey(k);
+    return d.getFullYear() === year && d.getMonth() === month;
+  });
+}
+
+function computeMonthlyReportData(year, month){
+  const keys = monthKeysFor(year, month).sort();
+  const total = keys.length;
+  const daysInCalendarMonth = new Date(year, month + 1, 0).getDate();
+
+  let netScoreTotal = 0;
+  let prayerLogged = 0, mosque = 0, prayed = 0, qazaa = 0;
+  let moodSum = 0, moodCount = 0;
+  let pagesRead = 0, ayatRead = 0, daysWithReading = 0;
+  let dailyRevision = 0, weeklyRevision = 0, monthlyRevision = 0;
+  const negCounts = {}, posCounts = {};
+  const perPrayer = {};
+  PRAYERS.forEach(p => perPrayer[p] = { mosque:0, prayed:0, qazaa:0 });
+
+  keys.forEach(key => {
+    const day = allData[key];
+    netScoreTotal += computeDayScore(day);
+
+    PRAYERS.forEach(p => {
+      const s = day.prayers && day.prayers[p];
+      if(s && s !== 'none'){
+        prayerLogged++;
+        if(s === 'mosque'){ mosque++; perPrayer[p].mosque++; }
+        else if(s === 'prayed'){ prayed++; perPrayer[p].prayed++; }
+        else if(s === 'qazaa'){ qazaa++; perPrayer[p].qazaa++; }
+      }
+    });
+
+    if(day.mood){ moodSum += day.mood; moodCount++; }
+
+    const p = (day.reading && day.reading.Book) || 0;
+    const a = (day.reading && day.reading.Ayat) || 0;
+    pagesRead += p; ayatRead += a;
+    if(p > 0 || a > 0) daysWithReading++;
+
+    if(day.revision){
+      if(day.revision.Daily) dailyRevision++;
+      if(day.revision.Weekly) weeklyRevision++;
+      if(day.revision.Monthly) monthlyRevision++;
+    }
+
+    (day.negatives||[]).forEach(t => negCounts[t] = (negCounts[t]||0)+1);
+    (day.positives||[]).forEach(t => posCounts[t] = (posCounts[t]||0)+1);
+  });
+
+  return {
+    year, month, keys, total, daysInCalendarMonth,
+    netScoreTotal,
+    prayerCompletionPct: total ? Math.round((prayerLogged/(PRAYERS.length*total))*100) : 0,
+    mosquePct: prayerLogged ? Math.round((mosque/prayerLogged)*100) : 0,
+    qazaaPct: prayerLogged ? Math.round((qazaa/prayerLogged)*100) : 0,
+    moodAvg: moodCount ? (moodSum/moodCount) : null,
+    perPrayer,
+    topSlips: Object.entries(negCounts).sort((a,b)=>b[1]-a[1]).slice(0,8),
+    topBoosts: Object.entries(posCounts).sort((a,b)=>b[1]-a[1]).slice(0,8),
+    pagesRead, ayatRead, daysWithReading,
+    dailyRevision, weeklyRevision, monthlyRevision
+  };
+}
+
+function renderMonthlyReport(){
+  const data = computeMonthlyReportData(reportMonth.getFullYear(), reportMonth.getMonth());
+
+  document.getElementById('reportMonthLabel').textContent =
+    reportMonth.toLocaleDateString(undefined, { month:'long', year:'numeric' });
+
+  document.getElementById('reportSummaryStats').innerHTML = `
+    <div class="stat-card"><span class="stat-num">${data.total}</span><span class="stat-label">days logged</span></div>
+    <div class="stat-card"><span class="stat-num">${data.netScoreTotal > 0 ? '+' : ''}${data.netScoreTotal}</span><span class="stat-label">net score total</span></div>
+    <div class="stat-card"><span class="stat-num">${data.prayerCompletionPct}%</span><span class="stat-label">prayer completion</span></div>
+    <div class="stat-card"><span class="stat-num">${data.mosquePct}%</span><span class="stat-label">mosque rate</span></div>
+    <div class="stat-card"><span class="stat-num">${data.moodAvg !== null ? data.moodAvg.toFixed(1) : '—'}</span><span class="stat-label">avg mood /5</span></div>
+  `;
+
+  const pbEl = document.getElementById('reportPrayerBreakdown');
+  pbEl.innerHTML = '';
+  PRAYERS.forEach(name => {
+    const pd = data.perPrayer[name];
+    const t = data.total || 1;
+    const mosquePct = (pd.mosque/t)*100, prayedPct = (pd.prayed/t)*100, qazaaPct = (pd.qazaa/t)*100;
+    const row = document.createElement('div');
+    row.className = 'pb-row';
+    row.innerHTML = `
+      <div class="pb-row-head">
+        <span>${name}</span>
+        <span class="pb-pct">${data.total ? Math.round((pd.qazaa/data.total)*100) : 0}% qazaa</span>
+      </div>
+      <div class="pb-track">
+        <div class="pb-seg-mosque" style="width:${mosquePct}%"></div>
+        <div class="pb-seg-prayed" style="width:${prayedPct}%"></div>
+        <div class="pb-seg-qazaa" style="width:${qazaaPct}%"></div>
+      </div>
+    `;
+    pbEl.appendChild(row);
+  });
+
+  function renderTagList(elId, entries, positive){
+    const el = document.getElementById(elId);
+    el.innerHTML = '';
+    if(entries.length === 0){
+      el.innerHTML = `<p class="empty-note">None logged this month.</p>`;
+      return;
+    }
+    const max = entries[0][1];
+    entries.forEach(([tag, count]) => {
+      const row = document.createElement('div');
+      row.className = 'tag-freq-row';
+      row.innerHTML = `
+        <span class="tag-freq-name">${tag}</span>
+        <span class="tag-freq-track"><span class="tag-freq-fill${positive ? ' pos-fill' : ''}" style="width:${(count/max)*100}%"></span></span>
+        <span class="tag-freq-count">${count}</span>
+      `;
+      el.appendChild(row);
+    });
+  }
+  renderTagList('reportSlips', data.topSlips, false);
+  renderTagList('reportBoosts', data.topBoosts, true);
+
+  document.getElementById('reportReadingRevision').innerHTML = `
+    <div class="stat-card"><span class="stat-num">${data.pagesRead}</span><span class="stat-label">pages read</span></div>
+    <div class="stat-card"><span class="stat-num">${data.ayatRead}</span><span class="stat-label">ayat read</span></div>
+    <div class="stat-card"><span class="stat-num">${data.dailyRevision}</span><span class="stat-label">daily revisions</span></div>
+    <div class="stat-card"><span class="stat-num">${data.weeklyRevision}</span><span class="stat-label">weekly revisions</span></div>
+    <div class="stat-card"><span class="stat-num">${data.monthlyRevision}</span><span class="stat-label">monthly revisions</span></div>
+  `;
+}
+
+document.getElementById('prevReportMonth').onclick = () => {
+  reportMonth = new Date(reportMonth.getFullYear(), reportMonth.getMonth() - 1, 1);
+  renderMonthlyReport();
+};
+document.getElementById('nextReportMonth').onclick = () => {
+  reportMonth = new Date(reportMonth.getFullYear(), reportMonth.getMonth() + 1, 1);
+  renderMonthlyReport();
+};
+
+/* ---------- lazy script loading for export libraries ---------- */
+function loadScript(src){
+  return new Promise((resolve, reject) => {
+    if(document.querySelector(`script[src="${src}"]`)){ resolve(); return; }
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error('Failed to load ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+const exportStatus = document.getElementById('exportStatus');
+function setStatus(msg){ exportStatus.textContent = msg; }
+
+/* ---------- Excel export ---------- */
+document.getElementById('exportExcelBtn').onclick = async () => {
+  try{
+    setStatus('Loading export tools…');
+    if(typeof XLSX === 'undefined'){
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    }
+    setStatus('Building spreadsheet…');
+
+    const data = computeMonthlyReportData(reportMonth.getFullYear(), reportMonth.getMonth());
+    const monthName = reportMonth.toLocaleDateString(undefined, { month:'long', year:'numeric' });
+
+    const summaryRows = [
+      ['Ehtesab — Monthly Report', monthName],
+      [],
+      ['Metric', 'Value'],
+      ['Days logged', data.total],
+      ['Net score total', data.netScoreTotal],
+      ['Prayer completion %', data.prayerCompletionPct],
+      ['Mosque rate % (of logged prayers)', data.mosquePct],
+      ['Qazaa rate % (of logged prayers)', data.qazaaPct],
+      ['Average mood (/5)', data.moodAvg !== null ? Number(data.moodAvg.toFixed(2)) : ''],
+      ['Pages read', data.pagesRead],
+      ['Ayat read', data.ayatRead],
+      ['Days with reading', data.daysWithReading],
+      ['Daily revisions logged', data.dailyRevision],
+      ['Weekly revisions logged', data.weeklyRevision],
+      ['Monthly revisions logged', data.monthlyRevision],
+      [],
+      ['Prayer breakdown', 'Mosque', 'Prayed', 'Qazaa', '% Qazaa'],
+      ...PRAYERS.map(p => {
+        const pd = data.perPrayer[p];
+        return [p, pd.mosque, pd.prayed, pd.qazaa, data.total ? Math.round((pd.qazaa/data.total)*100) + '%' : '0%'];
+      }),
+      [],
+      ['Top slips', 'Count'],
+      ...(data.topSlips.length ? data.topSlips : [['—', '']]),
+      [],
+      ['Top boosts', 'Count'],
+      ...(data.topBoosts.length ? data.topBoosts : [['—', '']]),
+    ];
+    const summarySheet = XLSX.utils.aoa_to_sheet(summaryRows);
+    summarySheet['!cols'] = [{wch:26},{wch:14},{wch:10},{wch:10},{wch:10}];
+
+    const logHeader = ['Date','Weekday','Fajr','Zohr','Asr','Maghrib','Isha','Gym','Upskilling',
+      'Book (pages)','Ayat','Daily Revision','Weekly Revision','Monthly Revision',
+      'Negatives','Positives','Mood (/5)','Went well','Pulled off track','Net score'];
+    const logRows = [logHeader];
+    for(let d = 1; d <= data.daysInCalendarMonth; d++){
+      const cellDate = new Date(data.year, data.month, d);
+      const key = toKey(cellDate);
+      const day = allData[key];
+      if(!day){
+        logRows.push([key, WEEKDAY_NAMES[cellDate.getDay()], '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+        continue;
+      }
+      logRows.push([
+        key,
+        WEEKDAY_NAMES[cellDate.getDay()],
+        day.prayers.Fajr, day.prayers.Zohr, day.prayers.Asr, day.prayers.Maghrib, day.prayers.Isha,
+        day.habits.Gym ? 'Yes' : 'No',
+        day.habits.Upskilling ? 'Yes' : 'No',
+        day.reading.Book || 0,
+        day.reading.Ayat || 0,
+        day.revision && day.revision.Daily ? 'Yes' : 'No',
+        day.revision && day.revision.Weekly ? 'Yes' : 'No',
+        day.revision && day.revision.Monthly ? 'Yes' : 'No',
+        (day.negatives||[]).join(', '),
+        (day.positives||[]).join(', '),
+        day.mood || '',
+        day.win || '',
+        day.slip || '',
+        computeDayScore(day)
+      ]);
+    }
+    const logSheet = XLSX.utils.aoa_to_sheet(logRows);
+    logSheet['!cols'] = logHeader.map(h => ({ wch: Math.max(10, h.length + 2) }));
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, summarySheet, 'Summary');
+    XLSX.utils.book_append_sheet(wb, logSheet, 'Daily Log');
+
+    const filename = `ehtesab-report-${data.year}-${String(data.month+1).padStart(2,'0')}.xlsx`;
+    XLSX.writeFile(wb, filename);
+    setStatus('Downloaded ' + filename);
+  }catch(err){
+    console.error(err);
+    setStatus('Export failed — check your internet connection and try again.');
+  }
+};
+
+/* ---------- Image export ---------- */
+document.getElementById('exportImageBtn').onclick = async () => {
+  try{
+    setStatus('Loading export tools…');
+    if(typeof html2canvas === 'undefined'){
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js');
+    }
+    setStatus('Rendering image…');
+
+    const node = document.getElementById('monthlyReportCard');
+    const canvas = await html2canvas(node, {
+      backgroundColor: '#141A2E',
+      scale: 2,
+      useCORS: true,
+      ignoreElements: (el) => el.classList && (el.classList.contains('report-export-row') || el.classList.contains('export-status'))
+    });
+    const data = computeMonthlyReportData(reportMonth.getFullYear(), reportMonth.getMonth());
+    const filename = `ehtesab-report-${data.year}-${String(data.month+1).padStart(2,'0')}.png`;
+
+    canvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      setStatus('Downloaded ' + filename);
+    }, 'image/png');
+  }catch(err){
+    console.error(err);
+    setStatus('Export failed — check your internet connection and try again.');
+  }
+};
