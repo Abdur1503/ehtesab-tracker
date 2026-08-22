@@ -17,6 +17,7 @@ function loadAll(){
 const allData = loadAll();
 const dayKeys = Object.keys(allData).sort();
 const today = new Date(); today.setHours(0,0,0,0);
+let reportMonth = new Date(today.getFullYear(), today.getMonth(), 1); // used by the Monthly Report section further down
 
 function prayerDone(state){ return state && state !== 'none'; }
 
@@ -506,8 +507,6 @@ function renderInsightText(){
 }
 
 /* ================= MONTHLY REPORT ================= */
-let reportMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-
 function monthKeysFor(year, month){
   return dayKeys.filter(k => {
     const d = fromKey(k);
